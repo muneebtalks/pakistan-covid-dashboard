@@ -4,6 +4,7 @@ import plotly.express as px
 
 st.set_page_config(page_title="Pakistan COVID-19 Dashboard", layout="wide")
 st.title("Pakistan COVID-19 Interactive Dashboard")
+st.markdown("**Made by Muneeb**")
 st.markdown("Historical data from Johns Hopkins CSSE (2020–2023)")
 
 
