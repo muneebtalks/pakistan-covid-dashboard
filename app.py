@@ -1,39 +1,39 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import requests
 
 st.set_page_config(page_title="Pakistan COVID-19 Dashboard", layout="wide")
 st.title("Pakistan COVID-19 Interactive Dashboard")
-st.markdown("Historical & latest data from Johns Hopkins")
-
+st.markdown("Historical & latest data from National Command & Operation Center (ncp.gov.pk)")
 
 @st.cache_data(ttl=3600)
 def load_data():
-    # JHU Confirmed cases time-series (global, filter Pakistan)
-    confirmed_url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
-    df_conf = pd.read_csv(confirmed_url)
+    url = "https://ncp.gov.pk/ncp/api"
+    response = requests.get(url)
+    data = response.json()
 
-    # JHU Deaths
-    deaths_url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
-    df_deaths = pd.read_csv(deaths_url)
+    # Parse historical data (assumes structure: list of daily records)
+    # Adjust keys based on actual JSON (common: 'date', 'cases', 'deaths', etc.)
+    timeline = []
+    for item in data.get('data', []):  # Or 'timeline' key if different
+        timeline.append({
+            'date': pd.to_datetime(item.get('date', item.get('reportDate'))),
+            'new_cases': item.get('newCases', 0),
+            'total_cases': item.get('totalCases', 0),
+            'new_deaths': item.get('newDeaths', 0),
+            'total_deaths': item.get('totalDeaths', 0)
+        })
 
-    # Filter Pakistan rows
-    pak_conf = df_conf[df_conf['Country/Region'] == 'Pakistan'].iloc[0].drop(['Province/State', 'Lat', 'Long'])
-    pak_deaths = df_deaths[df_deaths['Country/Region'] == 'Pakistan'].iloc[0].drop(['Province/State', 'Lat', 'Long'])
+    df = pd.DataFrame(timeline)
+    df = df.sort_values('date').reset_index(drop=True)
 
-    # Create date index
-    dates = pd.to_datetime(pak_conf.index)
-    df = pd.DataFrame({
-        'date': dates,
-        'total_cases': pak_conf.values,
-        'total_deaths': pak_deaths.values
-    })
+    # Fill missing totals with cumulative sum if needed
+    if df['total_cases'].isna().any():
+        df['total_cases'] = df['new_cases'].cumsum()
+    if df['total_deaths'].isna().any():
+        df['total_deaths'] = df['new_deaths'].cumsum()
 
-    # Calculate new_ from total (diff)
-    df['new_cases'] = df['total_cases'].diff().fillna(0).astype(int)
-    df['new_deaths'] = df['total_deaths'].diff().fillna(0).astype(int)
-
-    # Note: No vacc data in JHU; we can add later if needed
     return df
 
 metric = st.sidebar.selectbox("Choose metric",
